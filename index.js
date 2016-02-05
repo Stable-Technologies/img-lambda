@@ -7,6 +7,8 @@ var s3 = new AWS.S3();
 
 var validImageTypes = ['png', 'jpg', 'jpeg', 'gif'];
 
+var COUNT_LIMIT = 100;
+
 function validBg(input) {
   var reg = /[^A-Za-z0-9#]/;
   if(input.length <= 10 && !reg.test(input)) {
@@ -16,13 +18,16 @@ function validBg(input) {
   }
 }
 
-var attemptConvert = function(originalKey, wantKey, imgReq, imageType, context, quality,bg) {
+var attemptConvert = function(sourceRoot, wantKey, imgReq, imageType, context, quality,bg) {
+  var countKey = sourceRoot + "/__count.txt";
+  var countValue = -1;
   async.waterfall([
     function download(next) {
       // Download the image from S3 into a buffer.
+      var originalKey = sourceRoot + "/original";
       s3.getObject({
         Bucket : imgReq.bucket,
-        Key    : originalKey
+        Key: originalKey
       }, next);
     },
     function convert(response, next) {
@@ -48,14 +53,62 @@ var attemptConvert = function(originalKey, wantKey, imgReq, imageType, context, 
           });
       });
     },
+    //limit total number of generated images to about 100, as best we can given what we can do with s3...
+    //approach is simply to keep around a private "count" file that increments each time an image is generated
+    //its only checked when creating a new file, but I suppose a bunch of simultaneous writes could be a problem.
+    function ensureReasonableDirectory(contentType,data,next) {
+      s3.getObject({
+        Bucket: imgReq.bucket,
+        Key: countKey
+      }, function(err,count) {
+        if(!err) {
+          countValue = parseInt(count.Body.toString())
+          if(countValue > COUNT_LIMIT) {
+            console.log("Count Limit Exceeded for " + sourceRoot)
+            next("Count Limit Exceeded!")
+          } else {
+            next(null, contentType, data)
+          }
+        }
+        else {
+          if(err.statusCode === 404) {
+            // Stream the transformed image to a different S3 bucket.
+            s3.putObject({
+              Bucket: imgReq.bucket,
+              Key: countKey,
+              ContentType: "application/text",
+              Body: "0"
+            }, function(err,count) {
+             if(!err) {
+               console.log("Should have written count!")
+               countValue = 0
+               next(null, contentType, data)
+             }
+            });
+          } else {
+            console.log("Unexpected error fetching directory count! " + err)
+            next(err)
+          }
+        }
+      })
+    },
     function upload(contentType, data, next) {
-      // Stream the transformed image to a different S3 bucket.
+      //Stream the transformed image to s3
+      s3.putObject({
+        Bucket: imgReq.bucket,
+        Key: wantKey,
+        ACL: 'public-read',
+        Body: data,
+        ContentType: contentType
+      }, next);
+    },
+    function updateCount(response,next) {
+      //Increment the count file
       s3.putObject({
         Bucket      : imgReq.bucket,
-        Key         : wantKey,
-        ACL         : 'public-read',
-        Body        : data,
-        ContentType : contentType
+        Key         : countKey,
+        Body        : "" + (countValue + 1),
+        ContentType : "application/text"
       }, next);
     },
     function success(response,next) {
@@ -101,7 +154,6 @@ exports.handler = function(imgReq, context) {
   //Check if the image already exists
   async.waterfall([
     function check(next) {
-      // Download the image from S3 into a buffer.
       s3.headObject({
         Bucket : imgReq.bucket,
         Key    : wantKey
@@ -112,7 +164,7 @@ exports.handler = function(imgReq, context) {
     }
   ],
   function(err) {
-    var originalKey = sourceRoot + "/" + "original";
-    attemptConvert(originalKey,wantKey,imgReq,imageType,context,quality,bg);
+    //Not there? Go create it.
+    attemptConvert(sourceRoot,wantKey,imgReq,imageType,context,quality,bg);
   });
 };
