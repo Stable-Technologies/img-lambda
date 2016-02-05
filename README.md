@@ -15,6 +15,10 @@ There are 3 possible outputs:
 * - `context.fail("BadRequest")` The request was malformed (ie `status code 400`) 
 * - `context.fail("NotFound")` The source image does not exist / was never uploaded. (ie `status code 404`)
 
+possible optional query string parameters:
+* - `q` quality, 0-100 (defaults to 100)
+* - `bg` a background color to use if a transparent png is being converted to a jpg. (defaults to white)
+
 #Helpful Links
 https://rpgreen.wordpress.com/2016/01/04/how-to-http-redirects-with-api-gateway-and-lambda/
 http://www.jayway.com/2015/11/07/error-handling-in-api-gateway-and-aws-lambda/
