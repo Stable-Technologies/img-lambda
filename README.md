@@ -69,12 +69,12 @@ In the `GET` method:
 Add `400`, `302` and `404`, leave `200` alone.
 
 To each of the added HTTP Status codes (not including `200`), add the following headers:
-* - `Access-Control-Allow-Headers`
-* - `Access-Control-Allow-Origin`
-* - `Access-Control-Allow-Methods`
+* `Access-Control-Allow-Headers`
+* `Access-Control-Allow-Origin`
+* `Access-Control-Allow-Methods`
 
 In addition, to `302` add the following header:
-* - `Location`
+* `Location`
 
 Don't add a `Response Model` to any of them.
 
@@ -82,17 +82,17 @@ Don't add a `Response Model` to any of them.
 
 Add the following `Lambda Error Regex -> Method response status` (leave the "Default Mapping" / `200` entry alone)
 
-* - `BadRequest` -> 400
-* - `http.*` -> `302`
-* - `NotFound` -> 404
+* `BadRequest` -> `400`
+* `http.*` -> `302`
+* `NotFound` -> `404`
 
 Mapping values:
-* - Access-Control-Allow-Headers -> `'*'`
-* - Access-Control-Allow-Methods -> `'GET,OPTIONS'`
-* - Access-Control-Allow-Origin -> `'*'`
+* `Access-Control-Allow-Headers` -> `'*'`
+* `Access-Control-Allow-Methods` -> `'GET,OPTIONS'`
+* `Access-Control-Allow-Origin` -> `'*'`
 
 In addition, for `302`:
-* - Location -> `integration.response.body.errorMessage`
+* Location -> `integration.response.body.errorMessage`
 
 ## Enable CORS
 Make sure CORS is enabled (ie there is an OPTIONS method)
