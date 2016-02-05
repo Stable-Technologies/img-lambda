@@ -7,7 +7,16 @@ var s3 = new AWS.S3();
 
 var validImageTypes = ['png', 'jpg', 'jpeg', 'gif'];
 
-var attemptConvert = function(originalKey, wantKey, imgReq, imageType, context, quality) {
+function validBg(input) {
+  var reg = /[^A-Za-z0-9#]/;
+  if(input.length <= 10 && !reg.test(input)) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+var attemptConvert = function(originalKey, wantKey, imgReq, imageType, context, quality,bg) {
   async.waterfall([
     function download(next) {
       // Download the image from S3 into a buffer.
@@ -17,12 +26,20 @@ var attemptConvert = function(originalKey, wantKey, imgReq, imageType, context, 
       }, next);
     },
     function convert(response, next) {
+      var checkStripAlpha = function(img) {
+        if(imageType === 'jpg' || imageType === 'jpeg') {
+          return img.background(bg).alpha('remove')
+        } else {
+          return img
+        }
+      };
       gm(response.Body).size(function(err, size) {
         // Transform the image buffer in memory.
-        this
+        var img = this
           .resize(imgReq.width, imgReq.height)
           .quality(quality)
-          .toBuffer(imageType, function(err, buffer) {
+          .noProfile();
+        checkStripAlpha(img).toBuffer(imageType, function(err, buffer) {
             if (err) {
               next(err);
             } else {
@@ -45,7 +62,7 @@ var attemptConvert = function(originalKey, wantKey, imgReq, imageType, context, 
       context.fail(s3.endpoint.href+imgReq.bucket+"/"+wantKey);
     }
   ],
-  function (err) { 
+  function (err) {
     context.fail("NotFound");
   });
 };
@@ -73,10 +90,15 @@ exports.handler = function(imgReq, context) {
     return;
   }
 
-  //Check if the image already exists
+  //figure out what the s3 url would be
   var quality = ('q' in imgReq.querystring) ?  Math.min(100,Math.max(0,parseInt(imgReq.querystring.q))) : 100;
+  var bg = ('bg' in imgReq.querystring && validBg(imgReq.querystring.bg)) ? imgReq.querystring.bg : 'white';
+  var bgPath = ""
+  if((imageType === "jpg" || imageType === "jpeg") && bg !== 'white') { bgPath = "bg_"+bg; }
   var sourceRoot = imgReq.source.slice(0,-(imageType.length+1));
-  var wantKey = sourceRoot + "/" + imgReq.width + "_" + imgReq.height + "q" + quality + "." + imageType;
+  var wantKey = sourceRoot + "/" + imgReq.width + "_" + imgReq.height + "q" + quality + bgPath + "." + imageType;
+
+  //Check if the image already exists
   async.waterfall([
     function check(next) {
       // Download the image from S3 into a buffer.
@@ -91,6 +113,6 @@ exports.handler = function(imgReq, context) {
   ],
   function(err) {
     var originalKey = sourceRoot + "/" + "original";
-    attemptConvert(originalKey,wantKey,imgReq,imageType,context,quality);
+    attemptConvert(originalKey,wantKey,imgReq,imageType,context,quality,bg);
   });
 };
