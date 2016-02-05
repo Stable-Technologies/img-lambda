@@ -129,6 +129,12 @@ exports.handler = function(imgReq, context) {
     console.log("Required Parameters are missing!");
     context.fail("BadRequest");
   }
+
+  if(imgReq.height >= 3000 || imgReq.width >= 3000 || imgReq.height <= 0 || imgReq.width <= 0) {
+    console.log("Invalid Height / Width!")
+    context.fail("BadRequest")
+  }
+
   var typeMatch = imgReq.source.match(/\.([^.]*)$/);
   if(!typeMatch) {
     console.log('Invalid Image Type Requested')
