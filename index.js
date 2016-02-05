@@ -7,7 +7,7 @@ var s3 = new AWS.S3();
 
 var validImageTypes = ['png', 'jpg', 'jpeg', 'gif'];
 
-var attemptConvert = function(originalKey, wantKey, imgReq, imageType, context) {
+var attemptConvert = function(originalKey, wantKey, imgReq, imageType, context, quality) {
   async.waterfall([
     function download(next) {
       // Download the image from S3 into a buffer.
@@ -19,7 +19,9 @@ var attemptConvert = function(originalKey, wantKey, imgReq, imageType, context) 
     function convert(response, next) {
       gm(response.Body).size(function(err, size) {
         // Transform the image buffer in memory.
-        this.resize(imgReq.width, imgReq.height)
+        this
+          .resize(imgReq.width, imgReq.height)
+          .quality(quality)
           .toBuffer(imageType, function(err, buffer) {
             if (err) {
               next(err);
@@ -40,8 +42,6 @@ var attemptConvert = function(originalKey, wantKey, imgReq, imageType, context) 
       }, next);
     },
     function success(response,next) {
-      console.log("???????????")
-      console.log(response)
       context.fail(s3.endpoint.href+imgReq.bucket+"/"+wantKey);
     }
   ],
@@ -51,6 +51,14 @@ var attemptConvert = function(originalKey, wantKey, imgReq, imageType, context) 
 };
 
 exports.handler = function(imgReq, context) {
+  if( imgReq.source == null ||
+      imgReq.querystring == null ||
+      imgReq.width == null ||
+      imgReq.height == null ||
+      imgReq.bucket == null) {
+    console.log("Required Parameters are missing!");
+    context.fail("BadRequest");
+  }
   var typeMatch = imgReq.source.match(/\.([^.]*)$/);
   if(!typeMatch) {
     console.log('Invalid Image Type Requested')
@@ -65,8 +73,10 @@ exports.handler = function(imgReq, context) {
     return;
   }
 
+  //Check if the image already exists
+  var quality = ('q' in imgReq.querystring) ?  Math.min(100,Math.max(0,parseInt(imgReq.querystring.q))) : 100;
   var sourceRoot = imgReq.source.slice(0,-(imageType.length+1));
-  var wantKey = sourceRoot + "/" + imgReq.width + "_" + imgReq.height + "." + imageType;
+  var wantKey = sourceRoot + "/" + imgReq.width + "_" + imgReq.height + "q" + quality + "." + imageType;
   async.waterfall([
     function check(next) {
       // Download the image from S3 into a buffer.
@@ -81,6 +91,6 @@ exports.handler = function(imgReq, context) {
   ],
   function(err) {
     var originalKey = sourceRoot + "/" + "original";
-    attemptConvert(originalKey,wantKey,imgReq,imageType,context);
+    attemptConvert(originalKey,wantKey,imgReq,imageType,context,quality);
   });
 };

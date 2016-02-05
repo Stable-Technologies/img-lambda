@@ -16,4 +16,5 @@ There are 3 possible outputs:
 * - `context.fail("NotFound")` The source image does not exist / was never uploaded. (ie `status code 404`)
 
 #Helpful Links
+https://rpgreen.wordpress.com/2016/01/04/how-to-http-redirects-with-api-gateway-and-lambda/
 http://www.jayway.com/2015/11/07/error-handling-in-api-gateway-and-aws-lambda/
